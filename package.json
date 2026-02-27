@@ -6,17 +6,37 @@
   "bin": {
     "difflens": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "postinstall": "npx playwright install chromium",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "mcp",
+    "mcp-server",
+    "claude",
     "visual-diff",
     "screenshot",
-    "ui-testing"
+    "ui-testing",
+    "visual-regression",
+    "playwright"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/byzkhan/difflens.git"
+  },
+  "homepage": "https://github.com/byzkhan/difflens",
+  "bugs": {
+    "url": "https://github.com/byzkhan/difflens/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
