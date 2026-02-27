@@ -34,7 +34,8 @@ export function generateSnapshotId(label?: string): string {
   const timestamp = Date.now();
   const hex = randomBytes(4).toString('hex');
   if (label) {
-    return `${timestamp}-${label}`;
+    const safeLabel = label.replace(/[\/\\]/g, '-');
+    return `${timestamp}-${safeLabel}`;
   }
   return `${timestamp}-${hex}`;
 }
