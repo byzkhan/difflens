@@ -52,7 +52,10 @@ async function setupCommand(): Promise<void> {
 
   try {
     const existing = await readFile(mcpPath, 'utf-8');
-    config = JSON.parse(existing);
+    const parsed: unknown = JSON.parse(existing);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      config = parsed as Record<string, unknown>;
+    }
   } catch {
     // File doesn't exist or is invalid — start fresh
   }
