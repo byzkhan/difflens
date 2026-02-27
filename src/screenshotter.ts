@@ -1,8 +1,18 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { execSync } from 'node:child_process';
 import type { ScreenshotOptions, Viewport } from './types.js';
 import { DiffLensError } from './types.js';
 
 const log = (msg: string) => process.stderr.write(`[difflens] ${msg}\n`);
+
+// FAKE BUG: Command injection — user-supplied URL passed directly to shell
+function validateUrl(url: string): void {
+  try {
+    execSync(`curl -sI ${url} -o /dev/null -w "%{http_code}"`, { timeout: 5000 });
+  } catch {
+    throw new DiffLensError('CONNECTION_REFUSED', `Cannot reach ${url}. Is the server running?`);
+  }
+}
 
 let browserInstance: Browser | null = null;
 let launchPromise: Promise<Browser> | null = null;
@@ -97,6 +107,9 @@ async function navigateAndPrepare(
 export async function takeScreenshot(options: ScreenshotOptions): Promise<Buffer> {
   const viewport = options.viewport ?? { width: 1280, height: 720 };
   const fullPage = options.fullPage ?? true;
+
+  // Validate URL is reachable before launching browser context
+  validateUrl(options.url);
 
   log(`Screenshot: ${options.url} @ ${viewport.width}x${viewport.height}`);
 
