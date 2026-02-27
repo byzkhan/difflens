@@ -2,6 +2,32 @@
 
 MCP server that gives AI coding agents "eyes" for UI work. It screenshots localhost pages before and after code changes, compares them visually, and returns structured diff reports with overlay images.
 
+## Quick Start
+
+```bash
+npm install -g difflens
+cd your-project
+difflens setup
+# Restart Claude Code — DiffLens is now active
+```
+
+Then ask Claude: *"take a snapshot of http://localhost:3000"*
+
+### Use without installing
+
+Add to your project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "difflens": {
+      "command": "npx",
+      "args": ["-y", "difflens"]
+    }
+  }
+}
+```
+
 ## How It Works
 
 1. **Snapshot** a page to save a baseline screenshot
@@ -10,29 +36,13 @@ MCP server that gives AI coding agents "eyes" for UI work. It screenshots localh
 
 The overlay dims unchanged areas, highlights changed pixels in red, draws borders around detected regions, and includes a legend bar with the change percentage.
 
-## Install
+## Install from Source
 
 ```bash
 git clone https://github.com/byzkhan/difflens.git
 cd difflens
 npm install
-npx playwright install chromium
 npm run build
-```
-
-## Configure
-
-Add to your project's `.mcp.json` (or Claude Code's MCP settings):
-
-```json
-{
-  "mcpServers": {
-    "difflens": {
-      "command": "node",
-      "args": ["/path/to/difflens/dist/index.js"]
-    }
-  }
-}
 ```
 
 ## Tools

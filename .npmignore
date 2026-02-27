@@ -1,0 +1,6 @@
+src/
+tsconfig.json
+test-page.html
+.mcp.json
+.difflens/
+.claude/

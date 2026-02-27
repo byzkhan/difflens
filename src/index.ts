@@ -3,7 +3,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createRequire } from 'node:module';
 import {
   ensureStorageDirs,
   generateSnapshotId,
@@ -21,7 +23,69 @@ import { buildReport, buildResponsiveReport } from './report-builder.js';
 import { DiffLensError } from './types.js';
 import type { Viewport } from './types.js';
 
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json') as { version: string };
+
 const log = (msg: string) => process.stderr.write(`[difflens] ${msg}\n`);
+
+function printHelp(): void {
+  const message = `DiffLens v${pkg.version} — visual diff MCP server for AI coding agents
+
+Usage:
+  difflens          Start MCP server (called automatically by Claude Code)
+  difflens setup    Add DiffLens to .mcp.json in the current directory
+
+Quick start:
+  1. Run: difflens setup
+  2. Restart Claude Code
+  3. Ask Claude: "take a snapshot of http://localhost:3000"
+
+Or use without installing (add to .mcp.json):
+  { "mcpServers": { "difflens": { "command": "npx", "args": ["-y", "difflens"] } } }
+`;
+  process.stdout.write(message);
+}
+
+async function setupCommand(): Promise<void> {
+  const mcpPath = join(process.cwd(), '.mcp.json');
+  let config: Record<string, unknown> = {};
+
+  try {
+    const existing = await readFile(mcpPath, 'utf-8');
+    config = JSON.parse(existing);
+  } catch {
+    // File doesn't exist or is invalid — start fresh
+  }
+
+  if (!config.mcpServers || typeof config.mcpServers !== 'object') {
+    config.mcpServers = {};
+  }
+
+  (config.mcpServers as Record<string, unknown>).difflens = {
+    command: 'difflens',
+    args: [],
+  };
+
+  await writeFile(mcpPath, JSON.stringify(config, null, 2) + '\n');
+  process.stdout.write(`✓ Added DiffLens to ${mcpPath}\n`);
+  process.stdout.write(`  Restart Claude Code to pick up the new MCP server.\n`);
+}
+
+// --- CLI dispatch ---
+const subcommand = process.argv[2];
+
+if (subcommand === 'setup') {
+  setupCommand().catch((err) => {
+    process.stderr.write(`[difflens] Setup failed: ${err}\n`);
+    process.exit(1);
+  });
+} else if (!subcommand && process.stdin.isTTY) {
+  printHelp();
+  process.exit(0);
+} else {
+  // Non-TTY stdin (MCP mode) or unknown subcommand → start server
+  startServer();
+}
 
 function errorResponse(err: unknown): { content: Array<{ type: 'text'; text: string }> } {
   if (err instanceof DiffLensError) {
@@ -41,7 +105,7 @@ function errorResponse(err: unknown): { content: Array<{ type: 'text'; text: str
   };
 }
 
-async function main() {
+async function startMcpServer() {
   await ensureStorageDirs();
 
   const server = new McpServer({
@@ -447,7 +511,9 @@ async function main() {
   log('DiffLens MCP server running on stdio');
 }
 
-main().catch((err) => {
-  process.stderr.write(`[difflens] Fatal error: ${err}\n`);
-  process.exit(1);
-});
+function startServer() {
+  startMcpServer().catch((err) => {
+    process.stderr.write(`[difflens] Fatal error: ${err}\n`);
+    process.exit(1);
+  });
+}
