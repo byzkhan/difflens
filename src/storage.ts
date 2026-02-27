@@ -30,9 +30,12 @@ export function getDiffsDir(): string {
   return DIFFS_DIR;
 }
 
-export function generateSnapshotId(): string {
+export function generateSnapshotId(label?: string): string {
   const timestamp = Date.now();
   const hex = randomBytes(4).toString('hex');
+  if (label) {
+    return `${timestamp}-${label}`;
+  }
   return `${timestamp}-${hex}`;
 }
 

@@ -122,6 +122,7 @@ async function startMcpServer() {
     'Take a screenshot of a URL and save it as a baseline snapshot',
     {
       url: z.string().url().describe('The URL to screenshot (e.g. http://localhost:3000)'),
+      label: z.string().optional().describe('Human-readable label for this snapshot (e.g. "before-redesign", "homepage-v2")'),
       width: z.number().optional().default(1280).describe('Viewport width in pixels'),
       height: z.number().optional().default(720).describe('Viewport height in pixels'),
       fullPage: z.boolean().optional().default(true).describe('Capture full scrollable page'),
@@ -131,7 +132,7 @@ async function startMcpServer() {
     async (params) => {
       try {
         const viewport: Viewport = { width: params.width, height: params.height };
-        const id = generateSnapshotId();
+        const id = generateSnapshotId(params.label);
 
         const imageBuffer = await takeScreenshot({
           url: params.url,
@@ -368,6 +369,7 @@ async function startMcpServer() {
     {
       url: z.string().url().describe('The URL containing the element'),
       selector: z.string().describe('CSS selector of the element to capture'),
+      label: z.string().optional().describe('Human-readable label for this snapshot'),
       width: z.number().optional().default(1280).describe('Viewport width'),
       height: z.number().optional().default(720).describe('Viewport height'),
       waitForSelector: z.string().optional().describe('CSS selector to wait for before capturing'),
@@ -386,7 +388,7 @@ async function startMcpServer() {
         );
 
         // Save as snapshot
-        const id = generateSnapshotId();
+        const id = generateSnapshotId(params.label);
         const metadata = await saveSnapshot(id, imageBuffer, {
           id,
           url: params.url,
