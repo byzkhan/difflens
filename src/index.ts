@@ -41,7 +41,7 @@ Quick start:
   3. Ask Claude: "take a snapshot of http://localhost:3000"
 
 Or use without installing (add to .mcp.json):
-  { "mcpServers": { "difflens": { "command": "npx", "args": ["-y", "difflens"] } } }
+  { "mcpServers": { "difflens": { "command": "npx", "args": ["-y", "difflens-cli"] } } }
 `;
   process.stdout.write(message);
 }

@@ -5,7 +5,7 @@ MCP server that gives AI coding agents "eyes" for UI work. It screenshots localh
 ## Quick Start
 
 ```bash
-npm install -g difflens
+npm install -g difflens-cli
 cd your-project
 difflens setup
 # Restart Claude Code — DiffLens is now active
@@ -22,7 +22,7 @@ Add to your project's `.mcp.json`:
   "mcpServers": {
     "difflens": {
       "command": "npx",
-      "args": ["-y", "difflens"]
+      "args": ["-y", "difflens-cli"]
     }
   }
 }
