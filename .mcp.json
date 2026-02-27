@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "difflens": {
+      "command": "node",
+      "args": ["dist/index.js"]
+    }
+  }
+}
