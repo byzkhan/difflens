@@ -11,7 +11,7 @@ difflens setup
 # Restart Claude Code — DiffLens is now active
 ```
 
-Then ask Claude: *"take a snapshot of http://localhost:3000"*
+DiffLens works automatically — just make UI requests as normal. Claude will snapshot before changes and verify after, without you having to ask.
 
 ### Use without installing
 
@@ -125,19 +125,39 @@ Delete old snapshots by age or count.
 | `maxCount` | number | — | Keep at most this many (newest first) |
 | `dryRun` | boolean | false | Preview without deleting |
 
-## Example Workflow
+## Automatic Workflow
+
+DiffLens includes a `CLAUDE.md` file and Claude Code hooks that make visual verification fully automatic. You don't need to mention DiffLens — Claude does it on its own:
+
+```
+You:    Move the login button to the right side of the header
+Agent:  [calls snapshot on localhost:3000 — saves baseline]
+        [edits header CSS]
+        [calls check — compares before/after]
+
+        Done. Moved the login button to the right side of the header.
+        Visual check confirmed: only the button position changed,
+        no unintended layout shifts or regressions.
+```
+
+If Claude detects unintended changes in the diff, it fixes them automatically and re-checks until the result is clean.
+
+### How it works under the hood
+
+1. **CLAUDE.md** instructs Claude to always snapshot before UI edits and check after
+2. **Claude Code hooks** fire on every file edit — if the file is a UI file (.html, .css, .jsx, .tsx, .vue, .svelte, .scss), they remind Claude to snapshot/check
+3. Claude reads the diff report, fixes any regressions, and only responds once the visual output is verified
+
+### Manual usage
+
+You can also use DiffLens explicitly:
 
 ```
 You:    Take a snapshot of http://localhost:3000
-Agent:  [calls snapshot] ✓ Saved baseline snapshot abc123
-
-        ... you edit some CSS ...
+Agent:  [calls snapshot] Saved baseline abc123
 
 You:    Check localhost:3000 for visual changes
-Agent:  [calls check] SIGNIFICANT: 4.2% pixels changed.
-        2 changed region(s) detected:
-          1. Top-left area (400x60px) — header color change
-          2. Middle-center area (600x200px) — card layout shift
+Agent:  [calls check] 4.2% pixels changed — 2 regions detected
         [shows overlay image]
 ```
 

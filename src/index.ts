@@ -3,8 +3,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { readFile, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readFile, writeFile, mkdir, copyFile, chmod } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import {
   ensureStorageDirs,
@@ -46,8 +47,112 @@ Or use without installing (add to .mcp.json):
   process.stdout.write(message);
 }
 
+const CLAUDE_MD_CONTENT = `# DiffLens — Instructions for Claude Code
+
+## DiffLens Visual Verification (MANDATORY)
+
+When this project has DiffLens MCP tools available, you MUST follow
+this workflow for ANY change that affects visual UI (HTML, CSS, JSX,
+TSX, Vue, Svelte, SCSS, Tailwind classes, component styling, layout
+changes, or anything that would change how a page looks):
+
+### Before making changes:
+1. Ask the user what URL to check if you don't already know it
+   (e.g. http://localhost:3000)
+2. Call \`snapshot\` on that URL to save the current state as a baseline
+
+### After making changes:
+3. Call \`check\` on the same URL to compare against your snapshot
+4. Read the diff report carefully
+5. If there are ANY unintended changes (layout shifts, missing elements,
+   color changes, overlaps, broken responsive behavior), fix them
+   immediately
+6. Call \`check\` again to verify your fixes worked
+7. Only respond to the user once the diff report shows no unintended
+   changes
+
+### For responsive changes:
+- Use \`check_responsive\` instead of \`check\` when the change involves
+  layout, flexbox, grid, media queries, or anything that could look
+  different on mobile vs desktop
+
+### Rules:
+- NEVER skip the visual check. Even if you're confident the change is
+  correct, verify it.
+- If the dev server is not running, tell the user to start it before
+  you proceed with UI changes.
+- If the diff shows problems you can't fix after 3 attempts, show the
+  user the diff report and ask for guidance.
+`;
+
+const PRE_HOOK_CONTENT = `#!/bin/bash
+# PreToolUse hook: remind Claude to snapshot before editing UI files
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+
+if [[ "$FILE_PATH" =~ \\.(html|css|jsx|tsx|vue|svelte|scss|sass|less)$ ]]; then
+  cat <<'HOOK_EOF'
+{
+  "additionalContext": "[DiffLens] You are about to edit a UI file. BEFORE making this edit, ensure you have already called \`snapshot\` on the dev server URL to save a baseline. If you haven't taken a snapshot yet for this task, do it NOW before proceeding with the edit. If the user hasn't told you the dev server URL, ask them first."
+}
+HOOK_EOF
+  exit 0
+fi
+
+exit 0
+`;
+
+const POST_HOOK_CONTENT = `#!/bin/bash
+# PostToolUse hook: remind Claude to run visual check after editing UI files
+INPUT=$(cat)
+FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+
+if [[ "$FILE_PATH" =~ \\.(html|css|jsx|tsx|vue|svelte|scss|sass|less)$ ]]; then
+  cat <<'HOOK_EOF'
+{
+  "additionalContext": "[DiffLens] You just edited a UI file. Once you are done with ALL edits for this change, call \`check\` (or \`check_responsive\` for layout changes) on the dev server URL to verify there are no unintended visual regressions. Do NOT skip this step."
+}
+HOOK_EOF
+  exit 0
+fi
+
+exit 0
+`;
+
+const HOOKS_SETTINGS = {
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: 'Edit|Write',
+        hooks: [
+          {
+            type: 'command',
+            command: '"$CLAUDE_PROJECT_DIR"/.claude/hooks/difflens-pre-edit.sh',
+            timeout: 5,
+          },
+        ],
+      },
+    ],
+    PostToolUse: [
+      {
+        matcher: 'Edit|Write',
+        hooks: [
+          {
+            type: 'command',
+            command: '"$CLAUDE_PROJECT_DIR"/.claude/hooks/difflens-post-edit.sh',
+            timeout: 5,
+          },
+        ],
+      },
+    ],
+  },
+};
+
 async function setupCommand(): Promise<void> {
-  const mcpPath = join(process.cwd(), '.mcp.json');
+  const cwd = process.cwd();
+
+  // 1. Write/merge .mcp.json
+  const mcpPath = join(cwd, '.mcp.json');
   let config: Record<string, unknown> = {};
 
   try {
@@ -70,8 +175,72 @@ async function setupCommand(): Promise<void> {
   };
 
   await writeFile(mcpPath, JSON.stringify(config, null, 2) + '\n');
-  process.stdout.write(`✓ Added DiffLens to ${mcpPath}\n`);
-  process.stdout.write(`  Restart Claude Code to pick up the new MCP server.\n`);
+  process.stdout.write(`  ✓ Added DiffLens MCP server to ${mcpPath}\n`);
+
+  // 2. Write CLAUDE.md (append if exists, create if not)
+  const claudeMdPath = join(cwd, 'CLAUDE.md');
+  try {
+    const existing = await readFile(claudeMdPath, 'utf-8');
+    if (!existing.includes('DiffLens Visual Verification')) {
+      await writeFile(claudeMdPath, existing + '\n' + CLAUDE_MD_CONTENT);
+      process.stdout.write(`  ✓ Appended DiffLens instructions to CLAUDE.md\n`);
+    } else {
+      process.stdout.write(`  ✓ CLAUDE.md already has DiffLens instructions\n`);
+    }
+  } catch {
+    await writeFile(claudeMdPath, CLAUDE_MD_CONTENT);
+    process.stdout.write(`  ✓ Created CLAUDE.md with DiffLens instructions\n`);
+  }
+
+  // 3. Write hook scripts
+  const hooksDir = join(cwd, '.claude', 'hooks');
+  await mkdir(hooksDir, { recursive: true });
+
+  const preHookPath = join(hooksDir, 'difflens-pre-edit.sh');
+  const postHookPath = join(hooksDir, 'difflens-post-edit.sh');
+
+  await writeFile(preHookPath, PRE_HOOK_CONTENT);
+  await chmod(preHookPath, 0o755);
+  await writeFile(postHookPath, POST_HOOK_CONTENT);
+  await chmod(postHookPath, 0o755);
+  process.stdout.write(`  ✓ Installed Claude Code hooks in .claude/hooks/\n`);
+
+  // 4. Write/merge .claude/settings.json with hooks config
+  const settingsPath = join(cwd, '.claude', 'settings.json');
+  let settings: Record<string, unknown> = {};
+
+  try {
+    const existing = await readFile(settingsPath, 'utf-8');
+    const parsed: unknown = JSON.parse(existing);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      settings = parsed as Record<string, unknown>;
+    }
+  } catch {
+    // File doesn't exist — start fresh
+  }
+
+  // Merge hooks config
+  const existingHooks = (settings.hooks || {}) as Record<string, unknown[]>;
+  const newHooks = HOOKS_SETTINGS.hooks as Record<string, unknown[]>;
+
+  for (const [event, matchers] of Object.entries(newHooks)) {
+    if (!existingHooks[event]) {
+      existingHooks[event] = [];
+    }
+    // Only add if not already present
+    const existing = JSON.stringify(existingHooks[event]);
+    for (const matcher of matchers) {
+      if (!existing.includes('difflens-pre-edit') && !existing.includes('difflens-post-edit')) {
+        (existingHooks[event] as unknown[]).push(matcher);
+      }
+    }
+  }
+
+  settings.hooks = existingHooks;
+  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n');
+  process.stdout.write(`  ✓ Added hooks to .claude/settings.json\n`);
+
+  process.stdout.write(`\n  Restart Claude Code to activate DiffLens.\n`);
 }
 
 // --- CLI dispatch ---
