@@ -148,6 +148,13 @@ const HOOKS_SETTINGS = {
   },
 };
 
+// ANSI helpers
+const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
+const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
+const cyan = (s: string) => `\x1b[36m${s}\x1b[0m`;
+const green = (s: string) => `\x1b[32m${s}\x1b[0m`;
+const yellow = (s: string) => `\x1b[33m${s}\x1b[0m`;
+
 async function setupCommand(): Promise<void> {
   const cwd = process.cwd();
 
@@ -175,7 +182,7 @@ async function setupCommand(): Promise<void> {
   };
 
   await writeFile(mcpPath, JSON.stringify(config, null, 2) + '\n');
-  process.stdout.write(`  ✓ Added DiffLens MCP server to ${mcpPath}\n`);
+  process.stdout.write(`  ${green('✓')} Added DiffLens MCP server to .mcp.json\n`);
 
   // 2. Write CLAUDE.md (append if exists, create if not)
   const claudeMdPath = join(cwd, 'CLAUDE.md');
@@ -183,13 +190,13 @@ async function setupCommand(): Promise<void> {
     const existing = await readFile(claudeMdPath, 'utf-8');
     if (!existing.includes('DiffLens Visual Verification')) {
       await writeFile(claudeMdPath, existing + '\n' + CLAUDE_MD_CONTENT);
-      process.stdout.write(`  ✓ Appended DiffLens instructions to CLAUDE.md\n`);
+      process.stdout.write(`  ${green('✓')} Appended DiffLens instructions to CLAUDE.md\n`);
     } else {
-      process.stdout.write(`  ✓ CLAUDE.md already has DiffLens instructions\n`);
+      process.stdout.write(`  ${green('✓')} CLAUDE.md already has DiffLens instructions\n`);
     }
   } catch {
     await writeFile(claudeMdPath, CLAUDE_MD_CONTENT);
-    process.stdout.write(`  ✓ Created CLAUDE.md with DiffLens instructions\n`);
+    process.stdout.write(`  ${green('✓')} Created CLAUDE.md with DiffLens instructions\n`);
   }
 
   // 3. Write hook scripts
@@ -203,7 +210,7 @@ async function setupCommand(): Promise<void> {
   await chmod(preHookPath, 0o755);
   await writeFile(postHookPath, POST_HOOK_CONTENT);
   await chmod(postHookPath, 0o755);
-  process.stdout.write(`  ✓ Installed Claude Code hooks in .claude/hooks/\n`);
+  process.stdout.write(`  ${green('✓')} Installed Claude Code hooks in .claude/hooks/\n`);
 
   // 4. Write/merge .claude/settings.json with hooks config
   const settingsPath = join(cwd, '.claude', 'settings.json');
@@ -238,9 +245,36 @@ async function setupCommand(): Promise<void> {
 
   settings.hooks = existingHooks;
   await writeFile(settingsPath, JSON.stringify(settings, null, 2) + '\n');
-  process.stdout.write(`  ✓ Added hooks to .claude/settings.json\n`);
+  process.stdout.write(`  ${green('✓')} Added hooks to .claude/settings.json\n`);
 
-  process.stdout.write(`\n  Restart Claude Code to activate DiffLens.\n`);
+  // Welcome banner
+  const banner = `
+  ${dim('┌─────────────────────────────────────────────┐')}
+  ${dim('│')}                                             ${dim('│')}
+  ${dim('│')}   ${cyan('◆')} ${bold('DiffLens')} ${dim(`v${pkg.version}`)} — setup complete        ${dim('│')}
+  ${dim('│')}                                             ${dim('│')}
+  ${dim('└─────────────────────────────────────────────┘')}
+
+  ${bold('What happens now:')}
+
+    ${green('1.')} Restart Claude Code
+    ${green('2.')} Make any UI change — Claude snapshots and verifies automatically
+
+    You say ${dim('"move the button to the right"')} and Claude will:
+    ${dim('→')} snapshot the page ${dim('→')} make the edit ${dim('→')} check the diff ${dim('→')} fix regressions
+
+  ${bold('Tools available to Claude:')}
+
+    ${yellow('snapshot')}           Screenshot a page as a baseline
+    ${yellow('check')}              Diff current page against baseline
+    ${yellow('check_responsive')}   Diff at multiple viewport widths
+    ${yellow('snapshot_element')}   Screenshot a specific DOM element
+    ${yellow('list_snapshots')}     List stored snapshots
+    ${yellow('cleanup')}            Delete old snapshots
+
+  ${dim('GitHub: https://github.com/byzkhan/difflens')}
+`;
+  process.stdout.write(banner);
 }
 
 // --- CLI dispatch ---
