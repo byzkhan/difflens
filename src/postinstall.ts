@@ -60,4 +60,4 @@ const message = `
   ${dim('GitHub: https://github.com/byzkhan/difflens')}
 `;
 
-console.log(message);
+process.stderr.write(message + '\n');
